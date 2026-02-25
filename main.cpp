@@ -145,37 +145,13 @@ void write_structure(char* seq, int N, cell_ind* structure,int* struct_len){
   free(dot_bracket);
 }
 
-int main(int argc, char * const argv[]) {
-  // nussinov sequence
 
-  if (argc != 2) {
-    printf("./nussinov <seq>\n");
-    return 1;
-  }
-
-  char *seq;
+void nussinov(char* seq, int N){
   char *dot_bracket;
-  int N = 0;
   cell_ind *structure; // array tracing
   int* struct_len;
   int d_struct_len;
   struct_len = &d_struct_len; // may just want to ommit the pointer all together
-
-  N = strlen(argv[1]);
-#ifdef DEBUG
-  printf("Length of sequence = %d\n", N);
-#endif
-
-  // TODO:
-  // check for vulnerability
-  // clean up the input
-  if ((seq = (char *)malloc(N + 1)) != NULL) {
-    bzero(seq, N + 1); 
-    strncpy(seq, argv[1], N);
-#ifdef DEBUG
-    printf("argv[1] = %s\n", seq);
-#endif
-  }
 
   int* DP = initialize(N);
 
@@ -214,4 +190,35 @@ int main(int argc, char * const argv[]) {
   free(seq);
   free(DP);
   free(structure);
+
+}
+
+int main(int argc, char * const argv[]) {
+  // nussinov sequence
+
+  if (argc != 2) {
+    printf("./nussinov <seq>\n");
+    return 1;
+  }
+
+  char *seq;
+  int N = 0;
+
+  N = strlen(argv[1]);
+#ifdef DEBUG
+  printf("Length of sequence = %d\n", N);
+#endif
+
+  // TODO:
+  // check for vulnerability
+  // clean up the input
+  if ((seq = (char *)malloc(N + 1)) != NULL) {
+    bzero(seq, N + 1); 
+    strncpy(seq, argv[1], N);
+#ifdef DEBUG
+    printf("argv[1] = %s\n", seq);
+#endif
+  }
+
+  nussinov(seq, N);
 }
