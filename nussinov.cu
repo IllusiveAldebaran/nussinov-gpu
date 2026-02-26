@@ -44,8 +44,23 @@ __global__ void nussinov_gpu(char* seq, int* DP, int N){
   int gs = gridDim.x;
 
   int cell_value;
+
+
   
   if (bx == 0) {
+    // initialization
+    // NxN matrix with scores of optimal pairings
+    for(int k =0; k< MIN_LOOP_LENGTH; k++) {
+      int j;
+      for(int i = 0; i < N-k; i++){
+        j = i + k;
+        DP[N*i+j] = 0; //INT_MIN;
+      }
+
+    }
+
+
+
     for(int k = MIN_LOOP_LENGTH; k < N; k++){
       // TODO: Per Thread Diagonal Looping here
       for (int i = tx; i < N-k; i += bs){
@@ -102,7 +117,6 @@ void nussinov_gpu_wrap(char* seq, int* DP, int N) {
 
   // Copy DP matrix and Sequence
   CUDA_CHECK(cudaMemcpy(d_seq, seq, N * sizeof(char), cudaMemcpyHostToDevice));
-  CUDA_CHECK(cudaMemcpy(d_DP, DP, N * N * sizeof(int), cudaMemcpyHostToDevice));
 
   nussinov_gpu<<<GRID_SIZE, BLOCK_SIZE>>>(d_seq, d_DP, N);
 
