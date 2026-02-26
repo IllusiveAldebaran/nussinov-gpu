@@ -1,5 +1,5 @@
 TARGET := nussinov
-SRC := main.cpp nussinov.cu
+SRC := main.cpp # nussinov.cu
 INPUT_SEQ = inputs/ec16s.seq
 SEQ_N ?= 30
 
