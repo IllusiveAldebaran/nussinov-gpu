@@ -3,7 +3,7 @@
 #define MIN_LOOP_LENGTH 4
 
 #ifndef BLOCK_SIZE
-#define BLOCK_SIZE 1
+#define BLOCK_SIZE 32
 #endif
 
 #ifndef GRID_SIZE

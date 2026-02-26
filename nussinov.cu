@@ -48,7 +48,7 @@ __global__ void nussinov_gpu(char* seq, int* DP, int N){
   if (bx == 0) {
     for(int k = MIN_LOOP_LENGTH; k < N; k++){
       // TODO: Per Thread Diagonal Looping here
-      for(int i = 0; i < (N-k); i++){
+      for (int i = tx; i < N-k; i += bs){
         int j = i+k;
 
 

@@ -155,22 +155,22 @@ void nussinov(char* seq, int N){
 
   int* DP = initialize(N);
 
-  {
-    int j;
-    for(int k = MIN_LOOP_LENGTH; k < N; k++){
-      for(int i = 0; i < (N-k); i++){
-        j = i+k;
-        *((DP+i*N)+j) = opt(i, j, seq);
-      }
-    }
-  }
+  //{
+  //  int j;
+  //  for(int k = MIN_LOOP_LENGTH; k < N; k++){
+  //    for(int i = 0; i < (N-k); i++){
+  //      j = i+k;
+  //      *((DP+i*N)+j) = opt(i, j, seq);
+  //    }
+  //  }
+  //}
 
-  // Copy values to lower triangle to avoid null references
-  for(int i = 0; i < N; i++){
-    for(int j = 0; j < i; j++){
-      *((DP+N*i)+j) = *((DP+N*j)+i);
-    }
-  }
+  //// Copy values to lower triangle to avoid null references
+  //for(int i = 0; i < N; i++){
+  //  for(int j = 0; j < i; j++){
+  //    *((DP+N*i)+j) = *((DP+N*j)+i);
+  //  }
+  //}
 
 
 #ifdef DEBUG
@@ -181,14 +181,14 @@ void nussinov(char* seq, int N){
   // Using vectors may hurt us since these types do not exist and are 
   // not transferrable to GPUs
   structure = (cell_ind *)malloc(2*N*sizeof(cell_ind)); 
-  *struct_len = 0;
+  //*struct_len = 0;
 
-  traceback(0, N-1, structure, DP, seq, struct_len, N);
+  //traceback(0, N-1, structure, DP, seq, struct_len, N);
 
-  write_structure(seq, N, structure, struct_len);
+  //write_structure(seq, N, structure, struct_len);
 
 
-  printf("Running again on GPU\n");
+  //printf("Running again on GPU\n");
 
   nussinov_gpu_wrap(seq, DP, N);
 
