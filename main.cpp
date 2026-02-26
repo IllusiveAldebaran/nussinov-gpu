@@ -16,7 +16,7 @@
 
 #include <bits/stdc++.h> // max function
 
-#define MIN_LOOP_LENGTH 4
+#include "nussinov.cuh"
 
 // TODO Encode 
 // ACGT: 
@@ -181,6 +181,24 @@ void nussinov(char* seq, int N){
   // Using vectors may hurt us since these types do not exist and are 
   // not transferrable to GPUs
   structure = (cell_ind *)malloc(2*N*sizeof(cell_ind)); 
+  *struct_len = 0;
+
+  traceback(0, N-1, structure, DP, seq, struct_len, N);
+
+  write_structure(seq, N, structure, struct_len);
+
+
+  printf("Running again on GPU\n");
+
+  nussinov_gpu_wrap(seq, DP, N);
+
+  // Copy values to lower triangle to avoid null references
+  for(int i = 0; i < N; i++){
+    for(int j = 0; j < i; j++){
+      *((DP+N*i)+j) = *((DP+N*j)+i);
+    }
+  }
+
   *struct_len = 0;
 
   traceback(0, N-1, structure, DP, seq, struct_len, N);
