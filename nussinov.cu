@@ -8,6 +8,8 @@
 #include <cstdio>
 #include <cstring>
 
+#include <bits/stdc++.h> // max function
+
 #include "nussinov.cuh"
 
 #define CUDA_CHECK(expression)\
@@ -19,30 +21,7 @@
     }\
 }\
 
-__device__ __forceinline__
-bool pair_check_gpu(char nuc1, char nuc2) {
-  bool check = false;
-
-  // TODO: encode and compare via bool
-  if(nuc1 == 'A' && nuc2 == 'U') check = true;
-  if(nuc1 == 'U' && nuc2 == 'A') check = true;
-  if(nuc1 == 'C' && nuc2 == 'G') check = true;
-  if(nuc1 == 'G' && nuc2 == 'C') check = true;
-
-  return check;
-}
-
-// Convert to triangular indexing
-__host__ __device__ __forceinline__
-int triInd(int i, int j, int N) {
-  //int index = (N-MIN_LOOP_LENGTH-1)*i+((i)*(i+1))/2-(MIN_LOOP_LENGTH+1)*(i+1)+(j);
-  int index = (N-MIN_LOOP_LENGTH-1)*i-((i)*(i+1))/2+j-MIN_LOOP_LENGTH-1;
-
-  return index;
-}
-
-
-__global__ void nussinov_gpu(char* seq, int* DP, int N){
+__global__ void nussinov_gpu(uint8_t* seq, int* DP, int N){
   // Initialization?
   // DP calculation?
 
@@ -76,7 +55,7 @@ __global__ void nussinov_gpu(char* seq, int* DP, int N){
         // iterates through possible pairs for a cell
         for(int t = i; t< j-MIN_LOOP_LENGTH; t++){
           // Check paired scores (if pairing exists)
-          if (pair_check_gpu(seq[t], seq[j])) {
+          if (pair_check(seq, t, j)) {
             int pairing1 = 0;
             int pairing2 = 0;
 
@@ -98,10 +77,10 @@ __global__ void nussinov_gpu(char* seq, int* DP, int N){
 }
 
 
-void nussinov_gpu_wrap(char* seq, int* DP, int N) {
+void nussinov_gpu_wrap(uint8_t* seq, int* DP, int N) {
   // cudaMalloc() ?
   // DP calculation?
-  char* d_seq;
+  uint8_t* d_seq;
   int* d_DP;
 
   int* h_DP_upT = (int*)malloc(( ((N-MIN_LOOP_LENGTH)*(N-MIN_LOOP_LENGTH-1)) /2 )* sizeof(int)); // upper triangular seq

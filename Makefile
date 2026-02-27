@@ -8,10 +8,16 @@ SEQ_N ?= 30
 
 CXX := nvcc
 
-CXXFLAGS := -O3 -std=c++20 -Wall -Wextra
-CXXFLAGS += -DFORCE_ALL_OMP -mavx2 -faligned-new -DSSE_AVX2 -DOMPGPU -fopenmp-offload-mandatory --offload-arch=native -fopenmp-force-usm
+CXXFLAGS := -O3 -std=c++20 
 LDFLAGS  :=
-#DEFINES  := -DDEBUG
+
+ifeq ($(DEBUG),1)
+CXXFLAGS += -DDEBUG
+endif
+
+ifeq ($(CPU),1)
+CXXFLAGS += -DCPU_TARGET
+endif
 
 # == Build Rules ==
 
@@ -21,10 +27,8 @@ run: $(TARGET)
 	./$(TARGET) $(shell head -c ${SEQ_N} ${INPUT_SEQ})
 	
 $(TARGET): #$(OBJ)
-	$(CXX) $(SRC) -o $@ $(LDFLAGS)
+	$(CXX) $(CXXFLAGS) $(SRC) -o $@ $(LDFLAGS)
 
-#%.o: %.cpp
-#	$(CXX) $(CXXFLAGS) $(DEFINES) -c $< -o $@
 
 clean:
 	rm -f $(TARGET)

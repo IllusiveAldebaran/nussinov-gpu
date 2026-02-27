@@ -5,7 +5,7 @@
  * Reference Python: https://github.com/cgoliver/Nussinov
  *
  * Date of Creation: 2/24/26
- * Date Last Modified: 2/24/26
+ * Date Last Modified: 2/25/26
  */
 
 
@@ -18,12 +18,6 @@
 
 #include "nussinov.cuh"
 
-// TODO Encode 
-// ACGT: 
-// A: 00
-// C: 01
-// G: 10
-// T: 11 (U)
 
 // cell index
 struct cell_ind{
@@ -35,77 +29,35 @@ void show_DP(int* DP, int N){
   printf("Showing DP scores: \n");
   for(int i = 0; i<N; i++){
     for(int j = 0; j<N; j++){
-      printf("%3d ", *((DP+N*i)+j) );
+      if(i < j - MIN_LOOP_LENGTH ) {
+        printf("%3d ", DP[triInd(i, j, N)] );
+      } else {
+        printf("    ");
+      }
     }
     printf("\n");
   }
 }
 
-constexpr bool pair_check(char nuc1, char nuc2) {
-  bool check = false;
-
-  // TODO: encode and compare via bool
-  if(nuc1 == 'A' && nuc2 == 'U') check = true;
-  if(nuc1 == 'U' && nuc2 == 'A') check = true;
-  if(nuc1 == 'C' && nuc2 == 'G') check = true;
-  if(nuc1 == 'G' && nuc2 == 'C') check = true;
-
-  return check;
-}
-
-int* initialize(int N) {
-  // NxN matrix with scores of optimal pairings
-  int* DP = (int*)malloc(N*N*sizeof(int));
-  int j;
-  for(int k =0; k< MIN_LOOP_LENGTH; k++) {
-    for(int i = 0; i < N-k; i++){
-      j = i + k;
-      *((DP+i*N)+j) = 0; //INT_MIN;
-    }
-
-  }
-
-  return DP;
-}
-
-int opt(int i, int j, char* seq){
-  if (i>= j-MIN_LOOP_LENGTH){
-    return 0;
-  }
-
-  int unpaired = opt(i, j-1, seq);
-
-  // TODO: This is a reduction problem
-  int paired = 0; // (maximum)
-  for(int t = i; t< j-MIN_LOOP_LENGTH;t++){
-    if (pair_check(seq[t], seq[j])) {
-      // TODO: This recursiveness HAS to be incredible inefficient...
-      paired = std::max(paired, 1+opt(i, t-1, seq) + opt(t+1, j-1, seq));
-    }
-  }
-
-  return std::max(unpaired, paired);
-}
-
-void traceback(int i, int j, cell_ind* structure, int* DP, char* seq, int* trace_len, int N) {
+void traceback(int i, int j, cell_ind* structure, int* DP, const uint8_t* seq, int* trace_len, int N) {
   if (j<=i){
     return;
-  } else if ( *((DP+N*i)+j) == *((DP+N*i)+(j-1)) ){
+  } else if ( DP[N*i+ j] == DP[N*i+ j-1] ){
     traceback(i, j-1, structure, DP, seq, trace_len, N);
   } else {
     for(int k = i; k < j-MIN_LOOP_LENGTH; k++) {
-      if(pair_check(seq[k], seq[j])){
+      if(pair_check(seq, k, j)){
         if (k-1<0) {
-          if( *((DP+N*i)+j) ==  *((DP+N*(k+1))+(j-1)) + 1) {
+          if( DP[N*i+ j] ==  DP[N*(k+1)+ j-1] + 1) {
             structure[*trace_len].x = k;
             structure[*trace_len].y = j;
             (*trace_len)++;
             traceback(k+1, j-1, structure, DP, seq, trace_len, N);
             break;
           }
-        } else if ( *((DP+N*i)+j) == (
-                      *((DP+N*i)+(k-1))
-                    + *((DP+N*(k+1))+(j-1))
+        } else if ( DP[N*i+j] == (
+                      DP[N*(i)+k-1]
+                    + DP[N*(k+1)+ j-1]
                     + 1
                   )) {
           // add the pair (j,k) to our list of pairs
@@ -122,7 +74,7 @@ void traceback(int i, int j, cell_ind* structure, int* DP, char* seq, int* trace
   }
 }
 
-void write_structure(char* seq, int N, cell_ind* structure,int* struct_len){
+void write_structure(int N, cell_ind* structure, int* struct_len){
   char* dot_bracket = (char*)malloc(2*N+1);
   dot_bracket[N] = '\0';
   for(int i = 0; i<N; i++)
@@ -145,33 +97,64 @@ void write_structure(char* seq, int N, cell_ind* structure,int* struct_len){
   free(dot_bracket);
 }
 
+void nussinov_cpu(uint8_t* seq, int* DP, int N){
+  int cell_value;
+  int j;
 
-void nussinov(char* seq, int N){
-  char *dot_bracket;
+  for(int k = MIN_LOOP_LENGTH+1; k < N; k++){
+    for(int i = 0; i < (N-k); i++){
+      j = i+k;
+
+      if (i >= j- MIN_LOOP_LENGTH)
+        cell_value = 0;
+      else {
+#if MIN_LOOP_LENGTH == 0
+        // we do not want to go out of bounds
+        if(j==0) cell_value = 0;
+        else cell_value = DP[triInd(i, j-1, N)];
+#else
+        cell_value = DP[triInd(i, j-1, N)];
+#endif
+
+
+        // iterates through possible pairs for a cell
+        for(int t = i; t< j-MIN_LOOP_LENGTH; t++){
+          // Check paired scores (if pairing exists)
+          if (pair_check(seq, t, j)) {
+            int pairing1 = 0;
+            int pairing2 = 0;
+
+            if(i < (t-1)-MIN_LOOP_LENGTH)
+              pairing1 = DP[triInd(i, t-1, N)];
+            if(t+1 < (j-1)-MIN_LOOP_LENGTH)
+              pairing2 = DP[triInd(t+1, j-1, N)];
+
+            cell_value = std::max(cell_value, pairing1 + pairing2 + 1);
+          }
+        }
+      }
+
+      DP[triInd(i, j, N)] = cell_value;
+    }
+  }
+}
+
+void nussinov(uint8_t* seq, int N){
   cell_ind *structure; // array tracing
   int* struct_len;
   int d_struct_len;
   struct_len = &d_struct_len; // may just want to ommit the pointer all together
 
-  int* DP = initialize(N);
+  structure = (cell_ind *)malloc(2*N*sizeof(cell_ind)); 
+  
+  // annoying but needed for traceback
+  int* DP_square = (int*)malloc( N*N*sizeof(int));
 
-  //{
-  //  int j;
-  //  for(int k = MIN_LOOP_LENGTH; k < N; k++){
-  //    for(int i = 0; i < (N-k); i++){
-  //      j = i+k;
-  //      *((DP+i*N)+j) = opt(i, j, seq);
-  //    }
-  //  }
-  //}
+#ifdef CPU_TARGET
 
-  //// Copy values to lower triangle to avoid null references
-  //for(int i = 0; i < N; i++){
-  //  for(int j = 0; j < i; j++){
-  //    *((DP+N*i)+j) = *((DP+N*j)+i);
-  //  }
-  //}
+  int* DP = (int*)malloc( (((N-MIN_LOOP_LENGTH)*(N-MIN_LOOP_LENGTH-1)) /2 )*sizeof(int));
 
+  nussinov_cpu(seq, DP, N);
 
 #ifdef DEBUG
   show_DP(DP, N);
@@ -180,35 +163,38 @@ void nussinov(char* seq, int N){
   // we allocate in bulk since we do not know the final traceback size
   // Using vectors may hurt us since these types do not exist and are 
   // not transferrable to GPUs
-  structure = (cell_ind *)malloc(2*N*sizeof(cell_ind)); 
-  //*struct_len = 0;
+  *struct_len = 0;
 
-  //traceback(0, N-1, structure, DP, seq, struct_len, N);
-
-  //write_structure(seq, N, structure, struct_len);
-
-
-  //printf("Running again on GPU\n");
-
-  nussinov_gpu_wrap(seq, DP, N);
-
-  // Copy values to lower triangle to avoid null references
-  for(int i = 0; i < N; i++){
-    for(int j = 0; j < i; j++){
-      *((DP+N*i)+j) = *((DP+N*j)+i);
+  // Copy uptriangular matrix to real NxN Matrix
+  for(int k = MIN_LOOP_LENGTH+1; k < N; k++){
+    for (int i = 0; i < N-k; i++){
+      int j = i+k;
+      DP_square[N*i+j] = DP[triInd(i, j, N)];
     }
   }
 
+  // uses square for traceback
+  traceback(0, N-1, structure, DP_square, seq, struct_len, N);
+
+  write_structure(N, structure, struct_len);
+
+  printf("Running again on GPU\n");
+
+#endif // CPU_TARGET
+
+  nussinov_gpu_wrap(seq, DP_square, N);
+
   *struct_len = 0;
 
-  traceback(0, N-1, structure, DP, seq, struct_len, N);
+  traceback(0, N-1, structure, DP_square, seq, struct_len, N);
 
-  write_structure(seq, N, structure, struct_len);
+  write_structure(N, structure, struct_len);
 
-  free(seq);
+#ifdef CPU_TARGET
   free(DP);
+#endif
+  free(DP_square);
   free(structure);
-
 }
 
 int main(int argc, char * const argv[]) {
@@ -219,24 +205,27 @@ int main(int argc, char * const argv[]) {
     return 1;
   }
 
-  char *seq;
-  int N = 0;
+  int N = strlen(argv[1]);
+  int num_bytes = (N+3)/4;
+  uint8_t *seq = (uint8_t *)calloc(num_bytes, sizeof(uint8_t));
+  if (!seq) return 1;
 
-  N = strlen(argv[1]);
+  // Pack the string into a 2-bit array
+  for(int i = 0; i < N; i++) {
+    uint8_t val = -1;
+    switch(argv[1][i]) { // A is 00
+        case 'A': case 'a': val = 0; break; // 00
+        case 'C': case 'c': val = 1; break; // 01
+        case 'G': case 'g': val = 2; break; // 10
+        case 'T': case 't': val = 3; break; // 11
+        case 'U': case 'u': val = 3; break; // 11
+    }
+    seq[i / 4] |= (val << ((i % 4) * 2)); // pack 2 bits into a byte
+  }
+
 #ifdef DEBUG
   printf("Length of sequence = %d\n", N);
 #endif
-
-  // TODO:
-  // check for vulnerability
-  // clean up the input
-  if ((seq = (char *)malloc(N + 1)) != NULL) {
-    bzero(seq, N + 1); 
-    strncpy(seq, argv[1], N);
-#ifdef DEBUG
-    printf("argv[1] = %s\n", seq);
-#endif
-  }
 
   nussinov(seq, N);
 }
