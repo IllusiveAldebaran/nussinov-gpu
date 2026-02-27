@@ -16,13 +16,7 @@
 
 #include <bits/stdc++.h> // max function
 
-#define MIN_LOOP_LENGTH 1
-
-int triInd(int i, int j, int N) {
-  int index = (N-MIN_LOOP_LENGTH-1)*i-((i)*(i+1))/2+j-MIN_LOOP_LENGTH-1;
-
-  return index;
-}
+#include "nussinov.cuh"
 
 
 // cell index
@@ -44,15 +38,6 @@ void show_DP(int* DP, int N){
     printf("\n");
   }
 }
-
-
-inline bool pair_check(const uint8_t* seq, int i, int j) {
-  // retrieve 2 bits from a byte with mask
-  uint8_t nuc1 = (seq[i / 4] >> ((i % 4) * 2)) & 0x03; 
-  uint8_t nuc2 = (seq[j / 4] >> ((j % 4) * 2)) & 0x03;
-  return (nuc1 ^ nuc2) == 3;
-}
-
 
 void traceback(int i, int j, cell_ind* structure, int* DP, const uint8_t* seq, int* trace_len, int N) {
   if (j<=i){
@@ -89,7 +74,7 @@ void traceback(int i, int j, cell_ind* structure, int* DP, const uint8_t* seq, i
   }
 }
 
-void write_structure(int N, cell_ind* structure,int* struct_len){
+void write_structure(int N, cell_ind* structure, int* struct_len){
   char* dot_bracket = (char*)malloc(2*N+1);
   dot_bracket[N] = '\0';
   for(int i = 0; i<N; i++)
@@ -160,6 +145,13 @@ void nussinov(uint8_t* seq, int N){
   int d_struct_len;
   struct_len = &d_struct_len; // may just want to ommit the pointer all together
 
+  structure = (cell_ind *)malloc(2*N*sizeof(cell_ind)); 
+  
+  // annoying but needed for traceback
+  int* DP_square = (int*)malloc( N*N*sizeof(int));
+
+#ifdef CPU_TARGET
+
   int* DP = (int*)malloc( (((N-MIN_LOOP_LENGTH)*(N-MIN_LOOP_LENGTH-1)) /2 )*sizeof(int));
 
   nussinov_cpu(seq, DP, N);
@@ -171,13 +163,8 @@ void nussinov(uint8_t* seq, int N){
   // we allocate in bulk since we do not know the final traceback size
   // Using vectors may hurt us since these types do not exist and are 
   // not transferrable to GPUs
-  structure = (cell_ind *)malloc(2*N*sizeof(cell_ind)); 
   *struct_len = 0;
 
-  // So even though we only need upper triangular, for our traceback 
-  //  we need to still consider the diagonal and the strips immediately above the diagonal
-  //  determined with the MIN_LOOP_LENGTH. 
-  int* DP_square = (int*)malloc( N*N*sizeof(int));
   // Copy uptriangular matrix to real NxN Matrix
   for(int k = MIN_LOOP_LENGTH+1; k < N; k++){
     for (int i = 0; i < N-k; i++){
@@ -186,13 +173,26 @@ void nussinov(uint8_t* seq, int N){
     }
   }
 
+  // uses square for traceback
+  traceback(0, N-1, structure, DP_square, seq, struct_len, N);
 
+  write_structure(N, structure, struct_len);
+
+  printf("Running again on GPU\n");
+
+#endif // CPU_TARGET
+
+  nussinov_gpu_wrap(seq, DP_square, N);
+
+  *struct_len = 0;
 
   traceback(0, N-1, structure, DP_square, seq, struct_len, N);
 
   write_structure(N, structure, struct_len);
 
+#ifdef CPU_TARGET
   free(DP);
+#endif
   free(DP_square);
   free(structure);
 }
