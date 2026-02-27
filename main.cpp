@@ -5,7 +5,7 @@
  * Reference Python: https://github.com/cgoliver/Nussinov
  *
  * Date of Creation: 2/24/26
- * Date Last Modified: 2/24/26
+ * Date Last Modified: 2/25/26
  */
 
 
@@ -17,13 +17,6 @@
 #include <bits/stdc++.h> // max function
 
 #define MIN_LOOP_LENGTH 4
-
-// TODO Encode 
-// ACGT: 
-// A: 00
-// C: 01
-// G: 10
-// T: 11 (U)
 
 // cell index
 struct cell_ind{
@@ -41,16 +34,12 @@ void show_DP(int* DP, int N){
   }
 }
 
-constexpr bool pair_check(char nuc1, char nuc2) {
-  bool check = false;
 
-  // TODO: encode and compare via bool
-  if(nuc1 == 'A' && nuc2 == 'U') check = true;
-  if(nuc1 == 'U' && nuc2 == 'A') check = true;
-  if(nuc1 == 'C' && nuc2 == 'G') check = true;
-  if(nuc1 == 'G' && nuc2 == 'C') check = true;
-
-  return check;
+inline bool pair_check(const uint8_t* seq, int i, int j) {
+  // retrieve 2 bits from a byte with mask
+  uint8_t nuc1 = (seq[i / 4] >> ((i % 4) * 2)) & 0x03; 
+  uint8_t nuc2 = (seq[j / 4] >> ((j % 4) * 2)) & 0x03;
+  return (nuc1 ^ nuc2) == 3;
 }
 
 int* initialize(int N) {
@@ -68,7 +57,7 @@ int* initialize(int N) {
   return DP;
 }
 
-int opt(int i, int j, char* seq){
+int opt(int i, int j, const uint8_t* seq){
   if (i>= j-MIN_LOOP_LENGTH){
     return 0;
   }
@@ -78,7 +67,7 @@ int opt(int i, int j, char* seq){
   // TODO: This is a reduction problem
   int paired = 0; // (maximum)
   for(int t = i; t< j-MIN_LOOP_LENGTH;t++){
-    if (pair_check(seq[t], seq[j])) {
+    if (pair_check(seq, t, j)) {
       // TODO: This recursiveness HAS to be incredible inefficient...
       paired = std::max(paired, 1+opt(i, t-1, seq) + opt(t+1, j-1, seq));
     }
@@ -87,14 +76,14 @@ int opt(int i, int j, char* seq){
   return std::max(unpaired, paired);
 }
 
-void traceback(int i, int j, cell_ind* structure, int* DP, char* seq, int* trace_len, int N) {
+void traceback(int i, int j, cell_ind* structure, int* DP, const uint8_t* seq, int* trace_len, int N) {
   if (j<=i){
     return;
   } else if ( *((DP+N*i)+j) == *((DP+N*i)+(j-1)) ){
     traceback(i, j-1, structure, DP, seq, trace_len, N);
   } else {
     for(int k = i; k < j-MIN_LOOP_LENGTH; k++) {
-      if(pair_check(seq[k], seq[j])){
+      if(pair_check(seq, k, j)){
         if (k-1<0) {
           if( *((DP+N*i)+j) ==  *((DP+N*(k+1))+(j-1)) + 1) {
             structure[*trace_len].x = k;
@@ -122,7 +111,7 @@ void traceback(int i, int j, cell_ind* structure, int* DP, char* seq, int* trace
   }
 }
 
-void write_structure(char* seq, int N, cell_ind* structure,int* struct_len){
+void write_structure(int N, cell_ind* structure,int* struct_len){
   char* dot_bracket = (char*)malloc(2*N+1);
   dot_bracket[N] = '\0';
   for(int i = 0; i<N; i++)
@@ -146,8 +135,7 @@ void write_structure(char* seq, int N, cell_ind* structure,int* struct_len){
 }
 
 
-void nussinov(char* seq, int N){
-  char *dot_bracket;
+void nussinov(uint8_t* seq, int N){
   cell_ind *structure; // array tracing
   int* struct_len;
   int d_struct_len;
@@ -185,7 +173,7 @@ void nussinov(char* seq, int N){
 
   traceback(0, N-1, structure, DP, seq, struct_len, N);
 
-  write_structure(seq, N, structure, struct_len);
+  write_structure(N, structure, struct_len);
 
   free(seq);
   free(DP);
@@ -201,24 +189,26 @@ int main(int argc, char * const argv[]) {
     return 1;
   }
 
-  char *seq;
-  int N = 0;
+  int N = strlen(argv[1]);
+  int num_bytes = (N+3)/4;
+  uint8_t *seq = (uint8_t *)calloc(num_bytes, sizeof(uint8_t));
+  if (!seq) return 1;
 
-  N = strlen(argv[1]);
+  // Pack the string into a 2-bit array
+  for(int i = 0; i < N; i++) {
+    uint8_t val = 0;
+    switch(argv[1][i]) { // A is 00
+        case 'C': case 'c': val = 1; break; // 01
+        case 'G': case 'g': val = 2; break; // 10
+        case 'T': case 't': val = 3; break; // 11
+        case 'U': case 'u': val = 3; break; // 11
+    }
+    seq[i / 4] |= (val << ((i % 4) * 2)); // pack 2 bits into a byte
+  }
+
 #ifdef DEBUG
   printf("Length of sequence = %d\n", N);
 #endif
-
-  // TODO:
-  // check for vulnerability
-  // clean up the input
-  if ((seq = (char *)malloc(N + 1)) != NULL) {
-    bzero(seq, N + 1); 
-    strncpy(seq, argv[1], N);
-#ifdef DEBUG
-    printf("argv[1] = %s\n", seq);
-#endif
-  }
 
   nussinov(seq, N);
 }
