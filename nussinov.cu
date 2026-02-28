@@ -33,12 +33,17 @@ __global__ void nussinov_gpu(uint8_t* seq, int* DP, int N){
   int bx = blockIdx.x;
   //int gs = gridDim.x;
 
-  int cell_value;
+  // we now calculate 2 at once. 
+  int cell_value_l;
+  int cell_value_r;
 
   
   if (bx == 0) {
 
-    for(int k = MIN_LOOP_LENGTH+1; k < N; k++){
+    // two thread looping
+    // Notice N-k-1, does 1 less just to check in pairs
+    int k;
+    for(k = MIN_LOOP_LENGTH+1; k < N; k+=1){
       // Loop through diagonals (with different threads for next cell in diagonal)
       for (int i = tx; i < N-k; i += bs){
         int j = i+k;
@@ -46,29 +51,73 @@ __global__ void nussinov_gpu(uint8_t* seq, int* DP, int N){
         // unpaired value
 #if MIN_LOOP_LENGTH == 0
         // we do not want to go out of bounds
-        if(j==0) cell_value = 0;
-        else cell_value = DP[trInd(i, j-1, N)];
+        if(j==0) cell_value_l = 0;
+        else cell_value_l = DP[trInd(i, j-1, N)];
 #else
-        cell_value = DP[triInd(i, j-1, N)];
+        cell_value_l = DP[triInd(i, j-1, N)];
 #endif 
+        cell_value_r = 0;
 
         // iterates through possible pairs for a cell
-        for(int t = i; t< j-MIN_LOOP_LENGTH; t++){
+        int t;
+        int pairing1 = 0;
+        int pairing2l = 0;
+        int pairing2r = 0;
+
+
+        for(t = i; t< j-MIN_LOOP_LENGTH; t++){
           // Check paired scores (if pairing exists)
+          pairing1  = 0;
+          pairing2l = 0;
+          pairing2r = 0;
+
+          // check left item
           if (pair_check(seq, t, j)) {
-            int pairing1 = 0;
-            int pairing2 = 0;
 
             if(i < (t-1)-MIN_LOOP_LENGTH) 
               pairing1 = DP[triInd(i, t-1, N)];
             if(t+1 < (j-1)-MIN_LOOP_LENGTH) 
-              pairing2 = DP[triInd(t+1, j-1, N)];
+              pairing2l = DP[triInd(t+1, j-1, N)];
 
-            cell_value = max(cell_value, pairing1 + pairing2 + 1);
+            cell_value_l = max(cell_value_l, pairing1 + pairing2l + 1);
+          }
+
+          // check right item
+          if (pair_check(seq, t, j+1)) {
+            pairing2r = 0;
+
+            if(i < (t-1)-MIN_LOOP_LENGTH) 
+              pairing1 = DP[triInd(i, t-1, N)];
+            if(t+1 < (j-1)-MIN_LOOP_LENGTH) 
+              pairing2r = DP[triInd(t+1, j, N)];
+
+            cell_value_r = max(cell_value_r, pairing1 + pairing2r + 1);
           }
         }
 
-        DP[triInd(i,j,N)] = cell_value;
+        pairing1 = 0;
+        pairing2r = 0;
+
+        // right most item needs one more item
+        // Check paired scores (if pairing exists)
+        // check right item
+        if (pair_check(seq, t, j+1)) {
+          if(i < (t-1)-MIN_LOOP_LENGTH) 
+            pairing1 = DP[triInd(i, t-1, N)];
+          if(t+1 < (j-1)-MIN_LOOP_LENGTH) 
+            pairing2r = DP[triInd(t+1, j, N)];
+          cell_value_r = max(cell_value_r, pairing1 + pairing2r + 1);
+        }
+
+        // Second value is still diagonal, but is just 1 more value than the left one
+
+        cell_value_r = max(cell_value_l, cell_value_r);
+        DP[triInd(i,j,N)] = cell_value_l;
+
+        // Check if right cell is within bounds... meaning we should fill it
+        if (j+1<N) {
+          DP[triInd(i,j+1,N)] = cell_value_r;
+        }
       }
     }
   }
