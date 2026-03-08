@@ -40,13 +40,14 @@ HD bool pair_check(const uint8_t* seq, int i, int j) {
 
 // Pack the string into a 2-bit array
 // While 'seq' is singular it is stored contiguously in implementation
-HD void encSeq(std::string unencoded_seq, uint8_t* seq, uint32_t N){
+// N is just a place in emory where to end
+HD void encSeq(std::string unencoded_seq, uint8_t* seq, uint32_t start, uint32_t end){
 
 #ifdef DEBUG
-  std::cout << "Length: " << N << " Seq: " << unencoded_seq << "\n" << std::endl;
+  std::cout << "Length: " << (end-start) << " Seq: " << unencoded_seq << "\n" << std::endl;
 #endif
 
-  for(int i = 0; i < N; i++) {
+  for(int i = start; i < end; i++) {
     int8_t val = -1;
     switch(unencoded_seq[i]) { // A is 00
         case 'A': case 'a': val = 0; break; // 00

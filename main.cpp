@@ -32,6 +32,12 @@ struct cell_ind{
   int y;
 };
 
+// Runtime Params
+struct runtimeParams{
+  bool gpuEnable;
+  bool cpuEnable;
+};
+
 void show_DP(int* DP, int N){
   printf("Showing DP scores: \n");
   for(int i = 0; i<N; i++){
@@ -40,8 +46,7 @@ void show_DP(int* DP, int N){
         printf("%3d ", DP[triInd(i, j, N)] );
       } else {
         printf("    ");
-      }
-    }
+      } }
     printf("\n");
   }
 }
@@ -184,62 +189,91 @@ void nussinov_cpu(uint8_t* seq, int* DP, int N){
   }
 }
 
-void nussinov(uint8_t* seq, int N){
+/**
+ * @brief Wrapper for running nussinov algorithm. 
+ *
+ * @param seqs array rna sequences contiguous and with 2 bit encoding
+ * @param seqs_offsets determines what item endsin what place
+ * @param N determines number of rna sequences in that encoded array
+ * @param rp HAs runtime parameters for choosing what variations to do
+ */
+void nussinov(uint8_t* seqs, int* seqs_offsets, int N, runtimeParams rp){
   cell_ind *structure; // array tracing
   int* struct_len;
   int d_struct_len;
   struct_len = &d_struct_len; // may just want to ommit the pointer all together
 
-  structure = (cell_ind *)malloc(2*N*sizeof(cell_ind)); 
-  
-  // annoying but needed for traceback
-  int* DP_square = (int*)malloc( N*N*sizeof(int));
-
 #ifdef CPU_TARGET
 
-  int* DP = (int*)malloc( (((N-MIN_LOOP_LENGTH)*(N-MIN_LOOP_LENGTH-1)) /2 )*sizeof(int));
+  if(rp.cpuEnable) {
 
-  nussinov_cpu(seq, DP, N);
+    int start_seq = 0;
+    for(size_t num_seq = 0; num_seq < N; num_seq++) {
+      int n = start_seq - seqs_offsets[num_seq];
+
+      structure = (cell_ind*)malloc(2*n*sizeof(cell_ind)); 
+      
+      // annoying but needed for traceback
+      int* DP_square = (int*)malloc(n*n*sizeof(int));
+
+      int* DP = (int*)malloc( (((N-MIN_LOOP_LENGTH)*(N-MIN_LOOP_LENGTH-1)) /2 )*sizeof(int));
+
+      nussinov_cpu(seqs, DP, seqs_offsets);
 
 #ifdef DEBUG
-  show_DP(DP, N);
+      show_DP(DP, N);
 #endif
 
-  // we allocate in bulk since we do not know the final traceback size
-  // Using vectors may hurt us since these types do not exist and are 
-  // not transferrable to GPUs
-  *struct_len = 0;
+      // we allocate in bulk since we do not know the final traceback size
+      // Using vectors may hurt us since these types do not exist and are 
+      // not transferrable to GPUs
+      *struct_len = 0;
 
-  // Copy uptriangular matrix to real NxN Matrix
-  for(int k = MIN_LOOP_LENGTH+1; k < N; k++){
-    for (int i = 0; i < N-k; i++){
-      int j = i+k;
-      DP_square[N*i+j] = DP[triInd(i, j, N)];
-    }
+      // Copy uptriangular matrix to real NxN Matrix
+      for(int k = MIN_LOOP_LENGTH+1; k < N; k++){
+        for (int i = 0; i < N-k; i++){
+          int j = i+k;
+          DP_square[N*i+j] = DP[triInd(i, j, N)];
+        }
+      }
+
+      // uses square for traceback
+      traceback(0, N-1, structure, DP_square, seqs, struct_len, seqs_offsets);
+
+      write_structure(N, structure, struct_len);
+
+      free(DP_square);
+      free(structure);
+
+      printf("Running again on GPU\n");
   }
-
-  // uses square for traceback
-  traceback(0, N-1, structure, DP_square, seq, struct_len, N);
-
-  write_structure(N, structure, struct_len);
-
-  printf("Running again on GPU\n");
-
 #endif // CPU_TARGET
 
-  nussinov_gpu_wrap(seq, DP_square, N);
+  if(rp.gpuEnable){
 
-  *struct_len = 0;
 
-  traceback(0, N-1, structure, DP_square, seq, struct_len, N);
+    structure = (cell_ind*)malloc(2*n*sizeof(cell_ind)); 
+    
+    // annoying but needed for traceback
+    int* DP_square = (int*)malloc(n*n*sizeof(int));
 
-  write_structure(N, structure, struct_len);
+    int* DP = (int*)malloc( (((N-MIN_LOOP_LENGTH)*(N-MIN_LOOP_LENGTH-1)) /2 )*sizeof(int));
+
+
+    nussinov_gpu_wrap(seq, DP_square, N);
+
+    *struct_len = 0;
+
+    traceback(0, N-1, structure, DP_square, seq, struct_len, N);
+
+    write_structure(N, structure, struct_len);
+  }
 
 #ifdef CPU_TARGET
-  free(DP);
+  if(rp.cpuEnable){
+    free(DP);
+  }
 #endif
-  free(DP_square);
-  free(structure);
 }
 
 int main(int argc, char * const argv[]) {
@@ -249,6 +283,11 @@ int main(int argc, char * const argv[]) {
     std::cerr << "Usage: " << argv[0] << " <file-list.txt>\n" << std::endl;
     return 1;
   }
+
+  // enable CPU, disable GPU
+  runtimeParams rp;
+  rp.gpuEnable = false;
+  rp.cpuEnable = false;
 
   // File String parsing by Gemini
   std::string listFileName = argv[1];
@@ -282,31 +321,29 @@ int main(int argc, char * const argv[]) {
   std::vector<std::string> parsedSequences = getCleanedSequences(myFiles);
 
 
+  uint32_t N = parsedSequences.size();
   uint8_t *seqs;
-  uint32_t *seqs_lens = (uint32_t*)calloc(parsedSequences.size(), sizeof(uint32_t));
+  uint32_t *seqs_offsets = (uint32_t*)calloc(parsedSequences.size(), sizeof(uint32_t));
 
 
   {
-    // assume every new sequences is exclusive to a byte
-    // So sequence 1 and sequence 2 can not exist on the same byte
-    uint32_t total_seqs_bytes = 0;
-    for (uint32_t i = 0; i < parsedSequences.size(); i++) {
-      seqs_lens[i]      = parsedSequences[i].length();
-      total_seqs_bytes += (parsedSequences[i].length()+3)/4;
-
+    uint32_t offset_counter = 0;
+    for (uint32_t i = 0; i < N; i++) {
+      offset_counter = parsedSequences[i].length();
+      offset_counter += parsedSequences[i].length();
+      seqs_offsets[i]      = offset_counter;
     }
 
-    seqs = (uint8_t*)calloc(total_seqs_bytes, sizeof(uint8_t));
+    seqs = (uint8_t*)calloc((offset_counter+3)/4, sizeof(uint8_t));
 
     uint32_t next_ind = 0;
-    for (uint32_t i = 0; i < parsedSequences.size(); i++) {
-      encSeq(parsedSequences[i], &seqs[next_ind], seqs_lens[i]);
-      next_ind += (seqs_lens[i]+3)/4;
+    for (uint32_t i = 0; i < N; i++) {
+      encSeq(parsedSequences[i], seqs, next_ind, seqs_offsets[i]);
+      next_ind = seqs_offset[i];
     }
   }
 
-  //nussinov(seq, N);
-  nussinov(seqs, seqs_lens[0]);
+  nussinov(seqs, seqs_offsets, rp, N);
 
   free(seqs_lens);
   free(seqs);
