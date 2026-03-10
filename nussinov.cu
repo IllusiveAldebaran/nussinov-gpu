@@ -34,10 +34,8 @@ __global__ void nussinov_gpu(uint8_t* seq, int* DP, int N){
   //int gs = gridDim.x;
 
   int cell_value;
-
   
   if (bx == 0) {
-
     for(int k = MIN_LOOP_LENGTH+1; k < N; k++){
       // Loop through diagonals (with different threads for next cell in diagonal)
       for (int i = tx; i < N-k; i += bs){

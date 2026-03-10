@@ -3,12 +3,14 @@ SRC := main.cpp nussinov.cu
 INPUT_SEQ = inputs/ec16s.seq
 SEQ_N ?= 30
 
+# Default block size
+BLOCK ?= 64
 
 # == compiler and flags
-
 CXX := nvcc
 
-CXXFLAGS := -O3 -std=c++20 
+#CXXFLAGS := -O3 -std=c++20 
+CXXFLAGS := -O3 -std=c++20 -DBLOCK_SIZE=$(BLOCK)
 LDFLAGS  :=
 
 ifeq ($(DEBUG),1)

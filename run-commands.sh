@@ -5,4 +5,12 @@ echo $repoDir
 cd $repoDir
 
 make clean
-make run
+
+# CPU run
+make CPU=1
+time ./nussinov $(head -c 1500 inputs/ec16s.seq) > cpu.txt
+make clean
+
+# GPU run (number of threads parameter)
+make BLOCK=512
+nsys profile --stats=true --force-overwrite=true ./nussinov $(head -c 1500 inputs/ec16s.seq) > gpu_thread512.txt

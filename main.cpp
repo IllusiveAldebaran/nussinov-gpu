@@ -13,6 +13,7 @@
 #include <cstdlib>
 #include <cstdio>
 #include <cstring>
+#include "timer.hpp"
 
 #include <bits/stdc++.h> // max function
 
@@ -178,9 +179,14 @@ void nussinov(uint8_t* seq, int N){
 
   write_structure(N, structure, struct_len);
 
-  printf("Running again on GPU\n");
+  free(DP);
+  free(DP_square);
+  free(structure);
+  return;
 
 #endif // CPU_TARGET
+
+  printf("Running again on GPU\n");
 
   nussinov_gpu_wrap(seq, DP_square, N);
 
@@ -189,10 +195,6 @@ void nussinov(uint8_t* seq, int N){
   traceback(0, N-1, structure, DP_square, seq, struct_len, N);
 
   write_structure(N, structure, struct_len);
-
-#ifdef CPU_TARGET
-  free(DP);
-#endif
   free(DP_square);
   free(structure);
 }
@@ -227,5 +229,10 @@ int main(int argc, char * const argv[]) {
   printf("Length of sequence = %d\n", N);
 #endif
 
+  Timer timer;
+
+  // Running nussinov 
+  timer.Start();
   nussinov(seq, N);
+  fprintf(stdout, "Completed in %ld msec\n\n", timer.Stop());
 }
