@@ -60,4 +60,5 @@ HD void encSeq(std::string unencoded_seq, uint8_t* seq, uint32_t start, uint32_t
   }
 }
 
-void nussinov_gpu_wrap(uint8_t* seq, int* DP, int N);
+void nussinov_gpu_wrap(uint8_t* seqs, uint32_t* seq_offsets, uint32_t* seq_lengths, uint32_t* dp_offsets, 
+                      uint32_t N, uint32_t total_bytes, uint32_t total_dp_cells, int* batched_DP);

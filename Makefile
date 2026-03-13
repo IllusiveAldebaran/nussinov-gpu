@@ -9,7 +9,7 @@ SEQ_N ?= 30
 
 CXX := nvcc
 
-CXXFLAGS := -O3 -std=c++20 
+CXXFLAGS := -O3 -std=c++20 -DSEQ_N=$(SEQ_N)
 LDFLAGS  :=
 
 ifeq ($(DEBUG),1)
