@@ -76,14 +76,74 @@ __global__ void nussinov_gpu(uint8_t* seq, int* DP, int N){
   // traceback?
 }
 
+__global__ void traceback_gpu(cell_ind* structure, const int* DP_tri, const uint8_t* seq, int* trace_len, int N, int* stack_i, int* stack_j) {
+  // sequential process- simulating recursion with stack
+  if (threadIdx.x != 0 || blockIdx.x != 0) return; 
 
-void nussinov_gpu_wrap(uint8_t* seq, int* DP, int N) {
+  int top = 0;
+
+  stack_i[top] = 0;
+  stack_j[top] = N - 1;
+  top++;
+
+  while (top > 0) {
+    // Pop
+    top--;
+    int i = stack_i[top];
+    int j = stack_j[top];
+    if (j <= i) continue;
+
+    if (triInd_safe(i, j, N, DP_tri) == triInd_safe(i, j - 1, N, DP_tri)) {
+      stack_i[top] = i;
+      stack_j[top] = j - 1;
+      top++;
+    } else {
+      for (int k = i; k < j - MIN_LOOP_LENGTH; k++) {
+        if (pair_check(seq, k, j)) {
+          if (k - 1 < 0) {
+            if (triInd_safe(i, j, N, DP_tri) == triInd_safe(k + 1, j - 1, N, DP_tri) + 1) {
+              int idx = *trace_len;
+              *trace_len = idx + 1;
+              structure[idx].x = k;
+              structure[idx].y = j;
+                      
+              // Push sub-problem
+              stack_i[top] = k + 1;
+              stack_j[top] = j - 1;
+              top++;
+              break;
+            }
+          } else if (triInd_safe(i, j, N, DP_tri) == (triInd_safe(i, k - 1, N, DP_tri) + triInd_safe(k + 1, j - 1, N, DP_tri) + 1)) {
+            int idx = *trace_len;
+            *trace_len = idx + 1;
+            structure[idx].x = k;
+            structure[idx].y = j;
+                
+            // right side
+            stack_i[top] = k + 1;
+            stack_j[top] = j - 1;
+            top++;
+                
+            // left side
+            stack_i[top] = i;
+            stack_j[top] = k - 1;
+            top++;
+            break;
+          }
+        }
+      }
+    }
+  } 
+}
+
+
+void nussinov_gpu_wrap(uint8_t* seq, cell_ind* structure, int* trace_len, int N) {
   // cudaMalloc() ?
   // DP calculation?
   uint8_t* d_seq;
   int* d_DP;
 
-  int* h_DP_upT = (int*)malloc(( ((N-MIN_LOOP_LENGTH)*(N-MIN_LOOP_LENGTH-1)) /2 )* sizeof(int)); // upper triangular seq
+  // int* h_DP_upT = (int*)malloc(( ((N-MIN_LOOP_LENGTH)*(N-MIN_LOOP_LENGTH-1)) /2 )* sizeof(int)); // upper triangular seq
 
   // Allocate for DP matrix and Sequence
   CUDA_CHECK(cudaMalloc(&d_seq, N * sizeof(char)));
@@ -93,21 +153,32 @@ void nussinov_gpu_wrap(uint8_t* seq, int* DP, int N) {
   CUDA_CHECK(cudaMemcpy(d_seq, seq, N * sizeof(char), cudaMemcpyHostToDevice));
 
   nussinov_gpu<<<GRID_SIZE, BLOCK_SIZE>>>(d_seq, d_DP, N);
-
-  CUDA_CHECK(cudaMemcpy(h_DP_upT, d_DP, ( ((N-MIN_LOOP_LENGTH)*(N-MIN_LOOP_LENGTH-1)) /2 ) * sizeof(int), cudaMemcpyDeviceToHost));
-
-  // traceback?
-
-  // Copy uptriangular matrix to real NxN Matrix
-  for(int k = MIN_LOOP_LENGTH+1; k < N; k++){
-    for (int i = 0; i < N-k; i++){
-      int j = i+k;
-      DP[N*i+j] = h_DP_upT[triInd(i, j, N)];
-    }
-  }
-
   CUDA_CHECK(cudaDeviceSynchronize());
+
+  // CUDA_CHECK(cudaMemcpy(h_DP_upT, d_DP, ( ((N-MIN_LOOP_LENGTH)*(N-MIN_LOOP_LENGTH-1)) /2 ) * sizeof(int), cudaMemcpyDeviceToHost));
+  
+  cell_ind* d_structure;
+  int* d_trace_len;
+  int* d_stack_i;
+  int* d_stack_j;
+
+  CUDA_CHECK(cudaMalloc(&d_structure, 2 * N * sizeof(cell_ind)));
+  CUDA_CHECK(cudaMalloc(&d_trace_len, sizeof(int)));
+  CUDA_CHECK(cudaMemset(d_trace_len, 0, sizeof(int)));
+
+  CUDA_CHECK(cudaMalloc(&d_stack_i, N * sizeof(int))); 
+  CUDA_CHECK(cudaMalloc(&d_stack_j, N * sizeof(int)));
+
+  traceback_gpu<<<1, 1>>>(d_structure, d_DP, d_seq, d_trace_len, N, d_stack_i, d_stack_j);
+  CUDA_CHECK(cudaDeviceSynchronize());
+
+  CUDA_CHECK(cudaMemcpy(trace_len, d_trace_len, sizeof(int), cudaMemcpyDeviceToHost));
+  CUDA_CHECK(cudaMemcpy(structure, d_structure, (*trace_len) * sizeof(cell_ind), cudaMemcpyDeviceToHost));
 
   CUDA_CHECK(cudaFree(d_seq));
   CUDA_CHECK(cudaFree(d_DP));
+  CUDA_CHECK(cudaFree(d_structure));
+  CUDA_CHECK(cudaFree(d_trace_len));
+  CUDA_CHECK(cudaFree(d_stack_i));
+  CUDA_CHECK(cudaFree(d_stack_j));
 }

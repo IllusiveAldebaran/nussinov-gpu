@@ -19,12 +19,6 @@
 #include "nussinov.cuh"
 
 
-// cell index
-struct cell_ind{
-  int x;
-  int y;
-};
-
 void show_DP(int* DP, int N){
   printf("Showing DP scores: \n");
   for(int i = 0; i<N; i++){
@@ -182,11 +176,9 @@ void nussinov(uint8_t* seq, int N){
 
 #endif // CPU_TARGET
 
-  nussinov_gpu_wrap(seq, DP_square, N);
-
   *struct_len = 0;
 
-  traceback(0, N-1, structure, DP_square, seq, struct_len, N);
+  nussinov_gpu_wrap(seq, structure, struct_len, N);
 
   write_structure(N, structure, struct_len);
 
