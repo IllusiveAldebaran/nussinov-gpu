@@ -189,15 +189,21 @@ void nussinov_cpu(uint8_t* seq, int* DP, int N){
 void nussinov(uint8_t* seqs, uint32_t* seq_offsets, uint32_t* seq_lengths, uint32_t* dp_offsets, uint32_t N, uint32_t total_bytes, uint32_t total_dp_cells){
 
 #ifdef CPU_TARGET
+  Timer timerCpu;
+  long accTime = 0; // timers only count one kernel at a time, so they must be accumulated
   int* cpu_batched_DP = (int*)calloc(total_dp_cells, sizeof(int));
   int start_seq = 0;
 
+
+  // Running nussinov 
   for(size_t num_seq = 0; num_seq < N; num_seq++) {
     uint32_t len = seq_lengths[num_seq];
     uint8_t* curr_seq = &seqs[seq_offsets[num_seq]];
     int* curr_DP = &cpu_batched_DP[dp_offsets[num_seq]];
 
+    timerCpu.Start();
     nussinov_cpu(curr_seq, curr_DP, len);
+    accTime += timerCpu.Stop();
 
 #ifdef DEBUG
     show_DP(curr_DP, N);
@@ -222,7 +228,8 @@ void nussinov(uint8_t* seqs, uint32_t* seq_offsets, uint32_t* seq_lengths, uint3
     free(structure);
   }
   free(cpu_batched_DP);
-  printf("Running again on GPU\n");
+  fprintf(stderr, "Completed CPU in %ld msec\n\n", accTime);
+  fprintf(stdout, "Running again on GPU\n");
 #endif // CPU_TARGET
   int* gpu_batched_DP = (int*)calloc(total_dp_cells, sizeof(int));
   nussinov_gpu_wrap(seqs, seq_offsets, seq_lengths, dp_offsets, N, total_bytes, total_dp_cells, gpu_batched_DP);

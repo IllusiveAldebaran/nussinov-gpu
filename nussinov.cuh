@@ -1,10 +1,11 @@
 
 #include <string>
+#include "timer.hpp"
 
 #define MIN_LOOP_LENGTH 4
 
 #ifndef BLOCK_SIZE
-#define BLOCK_SIZE 256
+#define BLOCK_SIZE 64
 #endif
 
 #ifndef GRID_SIZE

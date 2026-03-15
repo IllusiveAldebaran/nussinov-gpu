@@ -145,6 +145,12 @@ void nussinov_gpu_wrap(uint8_t* seqs, uint32_t* seq_offsets, uint32_t* seq_lengt
   uint32_t *d_seq_offsets, *d_seq_lengths, *d_dp_offsets;
   int *d_batched_DP;
 
+  Timer timerCudaMems;
+  Timer timerCudaExec;
+  Timer timerCudaFree;
+  long time1, time2, time3;
+
+  timerCudaMems.Start();
   CUDA_CHECK(cudaMalloc(&d_seqs, total_bytes * sizeof(uint8_t)));
   CUDA_CHECK(cudaMalloc(&d_seq_offsets, N * sizeof(uint32_t)));
   CUDA_CHECK(cudaMalloc(&d_seq_lengths, N * sizeof(uint32_t)));
@@ -157,14 +163,22 @@ void nussinov_gpu_wrap(uint8_t* seqs, uint32_t* seq_offsets, uint32_t* seq_lengt
   CUDA_CHECK(cudaMemcpy(d_dp_offsets, dp_offsets, N * sizeof(uint32_t), cudaMemcpyHostToDevice));
   
   CUDA_CHECK(cudaMemset(d_batched_DP, 0, total_dp_cells * sizeof(int))); //calloc
+  time1 = timerCudaMems.Stop();
 
   int num_blocks = N;
 
+  timerCudaExec.Start();
   nussinov_gpu<<<num_blocks, BLOCK_SIZE>>>(d_seqs, d_seq_offsets, d_seq_lengths, d_dp_offsets, d_batched_DP, N);
+  time2 = timerCudaExec.Stop();
+
+  timerCudaFree.Start();
   CUDA_CHECK(cudaGetLastError());
   CUDA_CHECK(cudaDeviceSynchronize());
   CUDA_CHECK(cudaMemcpy(batched_DP, d_batched_DP, total_dp_cells * sizeof(int), cudaMemcpyDeviceToHost));
+  time3 = timerCudaFree.Stop();
 
+
+  fprintf(stderr, "GPU exec in Memcpy: %ld Exec: %ld Free %ld\n\n", time1, time2, time3);
   /*
   // CUDA_CHECK(cudaMemcpy(h_DP_upT, d_DP, ( ((N-MIN_LOOP_LENGTH)*(N-MIN_LOOP_LENGTH-1)) /2 ) * sizeof(int), cudaMemcpyDeviceToHost));
   
