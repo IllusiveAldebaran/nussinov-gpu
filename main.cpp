@@ -26,18 +26,6 @@
 #include "nussinov.cuh"
 
 
-// cell index
-struct cell_ind{
-  int x;
-  int y;
-};
-
-// Runtime Params
-struct runtimeParams{
-  bool gpuEnable;
-  bool cpuEnable;
-};
-
 void show_DP(int* DP, int N){
   printf("Showing DP scores: \n");
   for(int i = 0; i<N; i++){
@@ -249,13 +237,9 @@ void nussinov(uint8_t* seqs, int* seqs_offsets, int N, runtimeParams rp){
   }
 #endif // CPU_TARGET
 
-  if(rp.gpuEnable){
+  *struct_len = 0;
 
-
-    structure = (cell_ind*)malloc(2*n*sizeof(cell_ind)); 
-    
-    // annoying but needed for traceback
-    int* DP_square = (int*)malloc(n*n*sizeof(int));
+  nussinov_gpu_wrap(seq, structure, struct_len, N);
 
     int* DP = (int*)malloc( (((N-MIN_LOOP_LENGTH)*(N-MIN_LOOP_LENGTH-1)) /2 )*sizeof(int));
 

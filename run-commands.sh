@@ -5,4 +5,4 @@ echo $repoDir
 cd $repoDir
 
 make clean
-make run
+make CPU=1
