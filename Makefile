@@ -1,5 +1,6 @@
 TARGET := nussinov
 SRC := main.cpp nussinov.cu
+HEADER := nussinov.cuh
 INPUT_SEQ = inputs/ec16s.seq
 FILELIST = file-list.txt
 SEQ_N ?= 30
@@ -22,11 +23,11 @@ endif
 
 # == Build Rules ==
 
-all: run
+all: $(TARGET)
 
 #$(shell head -c ${SEQ_N} ${INPUT_SEQ})
 
-run: $(TARGET)
+run: $(TARGET) $(HEADER)
 	./$(TARGET) $(FILELIST)
 	
 $(TARGET): #$(OBJ)
