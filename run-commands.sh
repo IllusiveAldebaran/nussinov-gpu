@@ -5,4 +5,4 @@ echo $repoDir
 cd $repoDir
 
 make clean
-make CPU=1
+make run CPU=1 SEQ_N=25
