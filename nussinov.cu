@@ -162,7 +162,8 @@ void nussinov_gpu_wrap(uint8_t* seqs, uint32_t* seq_offsets, uint32_t* seq_lengt
   CUDA_CHECK(cudaMemcpy(d_seq_lengths, seq_lengths, N * sizeof(uint32_t), cudaMemcpyHostToDevice));
   CUDA_CHECK(cudaMemcpy(d_dp_offsets, dp_offsets, N * sizeof(uint32_t), cudaMemcpyHostToDevice));
   
-  CUDA_CHECK(cudaMemset(d_batched_DP, 0, total_dp_cells * sizeof(int))); //calloc
+  // Ideally not necessary because all indexed values go on previous values or are 0
+  //CUDA_CHECK(cudaMemset(d_batched_DP, 0, total_dp_cells * sizeof(int))); //calloc
   time1 = timerCudaMems.Stop();
 
   int num_blocks = N;
@@ -175,10 +176,8 @@ void nussinov_gpu_wrap(uint8_t* seqs, uint32_t* seq_offsets, uint32_t* seq_lengt
   CUDA_CHECK(cudaGetLastError());
   CUDA_CHECK(cudaDeviceSynchronize());
   CUDA_CHECK(cudaMemcpy(batched_DP, d_batched_DP, total_dp_cells * sizeof(int), cudaMemcpyDeviceToHost));
-  time3 = timerCudaFree.Stop();
 
 
-  fprintf(stderr, "GPU exec in Memcpy: %ld Exec: %ld Free %ld\n\n", time1, time2, time3);
   /*
   // CUDA_CHECK(cudaMemcpy(h_DP_upT, d_DP, ( ((N-MIN_LOOP_LENGTH)*(N-MIN_LOOP_LENGTH-1)) /2 ) * sizeof(int), cudaMemcpyDeviceToHost));
   
@@ -212,4 +211,6 @@ void nussinov_gpu_wrap(uint8_t* seqs, uint32_t* seq_offsets, uint32_t* seq_lengt
   CUDA_CHECK(cudaFree(d_seq_lengths));
   CUDA_CHECK(cudaFree(d_dp_offsets));
   CUDA_CHECK(cudaFree(d_batched_DP));
+  time3 = timerCudaFree.Stop();
+  fprintf(stderr, "GPU exec in Memcpy: %ld Exec: %ld Free %ld\n\n", time1, time2, time3);
 }
