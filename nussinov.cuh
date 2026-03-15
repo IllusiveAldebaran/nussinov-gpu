@@ -1,4 +1,5 @@
 
+#include "timer.hpp"
 
 #define MIN_LOOP_LENGTH 4
 
