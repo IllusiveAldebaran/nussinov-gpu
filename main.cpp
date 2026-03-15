@@ -194,7 +194,6 @@ void nussinov(uint8_t* seqs, uint32_t* seq_offsets, uint32_t* seq_lengths, uint3
   int* cpu_batched_DP = (int*)calloc(total_dp_cells, sizeof(int));
   int start_seq = 0;
 
-
   // Running nussinov 
   for(size_t num_seq = 0; num_seq < N; num_seq++) {
     uint32_t len = seq_lengths[num_seq];
@@ -232,7 +231,10 @@ void nussinov(uint8_t* seqs, uint32_t* seq_offsets, uint32_t* seq_lengths, uint3
   fprintf(stdout, "Running again on GPU\n");
 #endif // CPU_TARGET
   int* gpu_batched_DP = (int*)calloc(total_dp_cells, sizeof(int));
+
+  timerGPU.Start();
   nussinov_gpu_wrap(seqs, seq_offsets, seq_lengths, dp_offsets, N, total_bytes, total_dp_cells, gpu_batched_DP);
+  timerGPU.Stop();
 
   for (size_t num_seq = 0; num_seq < N; num_seq++) {
     uint32_t len = seq_lengths[num_seq];
@@ -255,6 +257,7 @@ void nussinov(uint8_t* seqs, uint32_t* seq_offsets, uint32_t* seq_lengths, uint3
     traceback(0, len-1, structure, DP_square, curr_seq, &struct_len, len);
     write_structure(len, structure, &struct_len);
   }
+
   free(gpu_batched_DP);
 }
 

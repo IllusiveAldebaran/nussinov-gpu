@@ -5,11 +5,12 @@ echo $repoDir
 cd $repoDir
 
 make clean
-make run CPU=1 SEQ_N=25
+#make run CPU=1 SEQ_N=25
 
 # CPU run
-#make CPU=1
-#time ./nussinov $(head -c 1500 inputs/ec16s.seq) > cpu.txt
+make CPU=1 SEQ_N=1500
+./nussinov synthetic/synthetic_sequences.txt > cpu_seq1500.txt
+
 #make clean
 #
 ## GPU run (number of threads parameter)
