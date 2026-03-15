@@ -1,6 +1,8 @@
 TARGET := nussinov
 SRC := main.cpp nussinov.cu
+HEADER := nussinov.cuh
 INPUT_SEQ = inputs/ec16s.seq
+FILELIST = file-list.txt
 SEQ_N ?= 30
 
 
@@ -8,7 +10,7 @@ SEQ_N ?= 30
 
 CXX := nvcc
 
-CXXFLAGS := -O3 -std=c++20 
+CXXFLAGS := -O3 -std=c++20 -DSEQ_N=$(SEQ_N)
 LDFLAGS  :=
 
 ifeq ($(DEBUG),1)
@@ -21,10 +23,12 @@ endif
 
 # == Build Rules ==
 
-all: run
+all: $(TARGET)
 
-run: $(TARGET)
-	./$(TARGET) $(shell head -c ${SEQ_N} ${INPUT_SEQ})
+#$(shell head -c ${SEQ_N} ${INPUT_SEQ})
+
+run: $(TARGET) $(HEADER)
+	./$(TARGET) $(FILELIST)
 	
 $(TARGET): #$(OBJ)
 	$(CXX) $(CXXFLAGS) $(SRC) -o $@ $(LDFLAGS)

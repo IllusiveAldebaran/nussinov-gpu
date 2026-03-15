@@ -21,10 +21,8 @@
     }\
 }\
 
-__global__ void nussinov_gpu(uint8_t* seq, int* DP, int N){
-  // Initialization?
-  // DP calculation?
-
+__global__ void nussinov_gpu(uint8_t* seqs, uint32_t* seq_offsets, uint32_t* seq_lengths, 
+                             uint32_t* dp_offsets, int* batched_DP, uint32_t N){
   // -----------------------------------------------------------
   // KERNEL CONFIGURATION
   // -----------------------------------------------------------
@@ -33,23 +31,26 @@ __global__ void nussinov_gpu(uint8_t* seq, int* DP, int N){
   int bx = blockIdx.x;
   //int gs = gridDim.x;
 
-  int cell_value;
+  uint32_t len = seq_lengths[bx];
+  uint8_t* seq = &seqs[seq_offsets[bx]];
+  int* DP = &batched_DP[dp_offsets[bx]];
 
-  
-  if (bx == 0) {
+  for(int k = MIN_LOOP_LENGTH+1; k < len; k++){
+    // Loop through diagonals (with different threads for next cell in diagonal)
+    for (int i = tx; i < len-k; i += bs){
+      int j = i+k;
+      int cell_value;
 
-    for(int k = MIN_LOOP_LENGTH+1; k < N; k++){
-      // Loop through diagonals (with different threads for next cell in diagonal)
-      for (int i = tx; i < N-k; i += bs){
-        int j = i+k;
-
+      if (i >= j - MIN_LOOP_LENGTH) { // prevent out of bounds
+        cell_value = 0;
+      } else {
         // unpaired value
 #if MIN_LOOP_LENGTH == 0
         // we do not want to go out of bounds
         if(j==0) cell_value = 0;
-        else cell_value = DP[trInd(i, j-1, N)];
+        else cell_value = DP[triInd(i, j-1, len)];
 #else
-        cell_value = DP[triInd(i, j-1, N)];
+        cell_value = DP[triInd(i, j-1, len)];
 #endif 
 
         // iterates through possible pairs for a cell
@@ -60,17 +61,18 @@ __global__ void nussinov_gpu(uint8_t* seq, int* DP, int N){
             int pairing2 = 0;
 
             if(i < (t-1)-MIN_LOOP_LENGTH) 
-              pairing1 = DP[triInd(i, t-1, N)];
+              pairing1 = DP[triInd(i, t-1, len)];
             if(t+1 < (j-1)-MIN_LOOP_LENGTH) 
-              pairing2 = DP[triInd(t+1, j-1, N)];
+              pairing2 = DP[triInd(t+1, j-1, len)];
 
             cell_value = max(cell_value, pairing1 + pairing2 + 1);
           }
         }
-
-        DP[triInd(i,j,N)] = cell_value;
       }
+
+      DP[triInd(i,j,len)] = cell_value;
     }
+    __syncthreads();
   }
   
   // traceback?
@@ -136,25 +138,34 @@ __global__ void traceback_gpu(cell_ind* structure, const int* DP_tri, const uint
   } 
 }
 
+void nussinov_gpu_wrap(uint8_t* seqs, uint32_t* seq_offsets, uint32_t* seq_lengths, uint32_t* dp_offsets, 
+                        uint32_t N, uint32_t total_bytes, uint32_t total_dp_cells, int* batched_DP) {
 
-void nussinov_gpu_wrap(uint8_t* seq, cell_ind* structure, int* trace_len, int N) {
-  // cudaMalloc() ?
-  // DP calculation?
-  uint8_t* d_seq;
-  int* d_DP;
+  uint8_t* d_seqs;
+  uint32_t *d_seq_offsets, *d_seq_lengths, *d_dp_offsets;
+  int *d_batched_DP;
 
-  // int* h_DP_upT = (int*)malloc(( ((N-MIN_LOOP_LENGTH)*(N-MIN_LOOP_LENGTH-1)) /2 )* sizeof(int)); // upper triangular seq
+  CUDA_CHECK(cudaMalloc(&d_seqs, total_bytes * sizeof(uint8_t)));
+  CUDA_CHECK(cudaMalloc(&d_seq_offsets, N * sizeof(uint32_t)));
+  CUDA_CHECK(cudaMalloc(&d_seq_lengths, N * sizeof(uint32_t)));
+  CUDA_CHECK(cudaMalloc(&d_dp_offsets, N * sizeof(uint32_t)));
+  CUDA_CHECK(cudaMalloc(&d_batched_DP, total_dp_cells * sizeof(int)));
 
-  // Allocate for DP matrix and Sequence
-  CUDA_CHECK(cudaMalloc(&d_seq, N * sizeof(char)));
-  CUDA_CHECK(cudaMalloc(&d_DP, ( ((N-MIN_LOOP_LENGTH)*(N-MIN_LOOP_LENGTH-1)) /2 )* sizeof(int)));
+  CUDA_CHECK(cudaMemcpy(d_seqs, seqs, total_bytes * sizeof(uint8_t), cudaMemcpyHostToDevice));
+  CUDA_CHECK(cudaMemcpy(d_seq_offsets, seq_offsets, N * sizeof(uint32_t), cudaMemcpyHostToDevice));
+  CUDA_CHECK(cudaMemcpy(d_seq_lengths, seq_lengths, N * sizeof(uint32_t), cudaMemcpyHostToDevice));
+  CUDA_CHECK(cudaMemcpy(d_dp_offsets, dp_offsets, N * sizeof(uint32_t), cudaMemcpyHostToDevice));
+  
+  CUDA_CHECK(cudaMemset(d_batched_DP, 0, total_dp_cells * sizeof(int))); //calloc
 
-  // Copy DP matrix and Sequence
-  CUDA_CHECK(cudaMemcpy(d_seq, seq, N * sizeof(char), cudaMemcpyHostToDevice));
+  int num_blocks = N;
 
-  nussinov_gpu<<<GRID_SIZE, BLOCK_SIZE>>>(d_seq, d_DP, N);
+  nussinov_gpu<<<num_blocks, BLOCK_SIZE>>>(d_seqs, d_seq_offsets, d_seq_lengths, d_dp_offsets, d_batched_DP, N);
+  CUDA_CHECK(cudaGetLastError());
   CUDA_CHECK(cudaDeviceSynchronize());
+  CUDA_CHECK(cudaMemcpy(batched_DP, d_batched_DP, total_dp_cells * sizeof(int), cudaMemcpyDeviceToHost));
 
+  /*
   // CUDA_CHECK(cudaMemcpy(h_DP_upT, d_DP, ( ((N-MIN_LOOP_LENGTH)*(N-MIN_LOOP_LENGTH-1)) /2 ) * sizeof(int), cudaMemcpyDeviceToHost));
   
   cell_ind* d_structure;
@@ -181,4 +192,10 @@ void nussinov_gpu_wrap(uint8_t* seq, cell_ind* structure, int* trace_len, int N)
   CUDA_CHECK(cudaFree(d_trace_len));
   CUDA_CHECK(cudaFree(d_stack_i));
   CUDA_CHECK(cudaFree(d_stack_j));
+  */
+  CUDA_CHECK(cudaFree(d_seqs));
+  CUDA_CHECK(cudaFree(d_seq_offsets));
+  CUDA_CHECK(cudaFree(d_seq_lengths));
+  CUDA_CHECK(cudaFree(d_dp_offsets));
+  CUDA_CHECK(cudaFree(d_batched_DP));
 }

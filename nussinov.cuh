@@ -1,4 +1,5 @@
 
+#include <string>
 
 #define MIN_LOOP_LENGTH 4
 
@@ -49,4 +50,28 @@ HD bool pair_check(const uint8_t* seq, int i, int j) {
   return (nuc1 ^ nuc2) == 3;
 }
 
-void nussinov_gpu_wrap(uint8_t* seq, cell_ind* structure, int* trace_len, int N);
+
+// Pack the string into a 2-bit array
+// While 'seq' is singular it is stored contiguously in implementation
+// N is just a place in emory where to end
+HD void encSeq(std::string unencoded_seq, uint8_t* seq, uint32_t start, uint32_t end){
+
+#ifdef DEBUG
+  std::cout << "Length: " << (end-start) << " Seq: " << unencoded_seq << "\n" << std::endl;
+#endif
+
+  for(int i = start; i < end; i++) {
+    int8_t val = -1;
+    switch(unencoded_seq[i]) { // A is 00
+        case 'A': case 'a': val = 0; break; // 00
+        case 'C': case 'c': val = 1; break; // 01
+        case 'G': case 'g': val = 2; break; // 10
+        case 'T': case 't': val = 3; break; // 11
+        case 'U': case 'u': val = 3; break; // 11
+    }
+    seq[i / 4] |= (val << ((i % 4) * 2)); // pack 2 bits into a byte
+  }
+}
+
+void nussinov_gpu_wrap(uint8_t* seqs, uint32_t* seq_offsets, uint32_t* seq_lengths, uint32_t* dp_offsets, 
+                      uint32_t N, uint32_t total_bytes, uint32_t total_dp_cells, int* batched_DP);
