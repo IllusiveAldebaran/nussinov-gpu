@@ -171,8 +171,8 @@ void nussinov_gpu_wrap(uint8_t* seqs, uint32_t* seq_offsets, uint32_t* seq_lengt
   timerCudaExec.Start();
   nussinov_gpu<<<num_blocks, BLOCK_SIZE>>>(d_seqs, d_seq_offsets, d_seq_lengths, d_dp_offsets, d_batched_DP, N);
   time2 = timerCudaExec.Stop();
-
   timerCudaFree.Start();
+
   CUDA_CHECK(cudaGetLastError());
   CUDA_CHECK(cudaDeviceSynchronize());
   CUDA_CHECK(cudaMemcpy(batched_DP, d_batched_DP, total_dp_cells * sizeof(int), cudaMemcpyDeviceToHost));
