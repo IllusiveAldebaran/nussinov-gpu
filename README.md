@@ -1,12 +1,13 @@
 # Build Instructions
 
-Compile and Run with only 50 nucleotides for max length of nucleotides.
+Compile and Run with different parameters: SEQ_N, LOOP, BLOCK, and GRID
+(SEQ_N = 30, BLOCK = 64, LOOP = 4, GRID = 1 by default)
 
 ```bash
-make SEQ_N=50
+make SEQ_N=50 BLOCK=512 GRID=8
 ```
 
-Run on CPU as well, good for verification.
+Run on CPU (Run on GPU after CPU)
 ```bash
 make CPU=1
 ```
