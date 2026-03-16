@@ -151,9 +151,9 @@ void nussinov_cpu(uint8_t* seq, int* DP, int N){
 #if MIN_LOOP_LENGTH == 0
         // we do not want to go out of bounds
         if(j==0) cell_value = 0;
-        else cell_value = DP[triInd(i, j-1, N)];
+        else cell_value = triInd_safe(i, j-1, N, DP);
 #else
-        cell_value = DP[triInd(i, j-1, N)];
+        cell_value = triInd_safe(i, j-1, N, DP);
 #endif
 
 
@@ -165,9 +165,9 @@ void nussinov_cpu(uint8_t* seq, int* DP, int N){
             int pairing2 = 0;
 
             if(i < (t-1)-MIN_LOOP_LENGTH)
-              pairing1 = DP[triInd(i, t-1, N)];
+              pairing1 = triInd_safe(i, t-1, N, DP);
             if(t+1 < (j-1)-MIN_LOOP_LENGTH)
-              pairing2 = DP[triInd(t+1, j-1, N)];
+              pairing2 = triInd_safe(t+1, j-1, N, DP);
 
             cell_value = std::max(cell_value, pairing1 + pairing2 + 1);
           }
