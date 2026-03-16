@@ -48,9 +48,9 @@ __global__ void nussinov_gpu(uint8_t* seqs, uint32_t* seq_offsets, uint32_t* seq
 #if MIN_LOOP_LENGTH == 0
         // we do not want to go out of bounds
         if(j==0) cell_value = 0;
-        else cell_value = DP[triInd(i, j-1, len)];
+        else cell_value = triInd_safe(i, j-1, len, DP);
 #else
-        cell_value = DP[triInd(i, j-1, len)];
+        cell_value = triInd_safe(i, j-1, len, DP);
 #endif 
 
         // iterates through possible pairs for a cell
@@ -61,9 +61,9 @@ __global__ void nussinov_gpu(uint8_t* seqs, uint32_t* seq_offsets, uint32_t* seq
             int pairing2 = 0;
 
             if(i < (t-1)-MIN_LOOP_LENGTH) 
-              pairing1 = DP[triInd(i, t-1, len)];
+              pairing1 = triInd_safe(i, t-1, len, DP);
             if(t+1 < (j-1)-MIN_LOOP_LENGTH) 
-              pairing2 = DP[triInd(t+1, j-1, len)];
+              pairing2 = triInd_safe(t+1, j-1, len, DP);
 
             cell_value = max(cell_value, pairing1 + pairing2 + 1);
           }
