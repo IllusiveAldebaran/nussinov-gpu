@@ -1,1 +1,10 @@
 synthetic/synthetic_seq_0.seq
+synthetic/synthetic_seq_1.seq
+synthetic/synthetic_seq_2.seq
+synthetic/synthetic_seq_3.seq
+synthetic/synthetic_seq_4.seq
+synthetic/synthetic_seq_5.seq
+synthetic/synthetic_seq_6.seq
+synthetic/synthetic_seq_7.seq
+synthetic/synthetic_seq_8.seq
+synthetic/synthetic_seq_9.seq
