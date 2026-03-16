@@ -1,0 +1,7 @@
+# Compiled Binaries
+nussinov
+
+# Profiling and Debugging
+*.qdstrm
+*.nsys-rep
+*.sqlite
