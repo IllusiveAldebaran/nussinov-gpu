@@ -9,14 +9,13 @@ cd ..
 
 ### Instructions
 1. If running it on DSMLP:
-   Make sure to match SEQ_N parameter in run-commands.sh and the length of the synthetic sequence you just generated
 
 ```
 /opt/launch-sh/bin/launch.sh -v a30 -c 8 -g 1 -m 8 -i yatisht/ece213-wi26:latest -f ./nussinov-gpu/run-commands.sh
 ```
+Make sure to match SEQ_N parameter in run-commands.sh and the length of the synthetic sequence you just generated
 
 2. If using your own GPU:
-Run as:
 ```bash
 ./nussinov <seq_file_list.txt>
 ```
